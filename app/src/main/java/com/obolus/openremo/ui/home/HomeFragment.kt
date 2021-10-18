@@ -9,12 +9,18 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
+import com.github.aachartmodel.aainfographics.aachartcreator.AAChartModel
+import com.github.aachartmodel.aainfographics.aachartcreator.AAChartType
+import com.github.aachartmodel.aainfographics.aachartcreator.AAChartView
+import com.github.aachartmodel.aainfographics.aachartcreator.AASeriesElement
 import com.github.kittinunf.fuel.Fuel
 import com.github.kittinunf.fuel.core.extensions.authentication
 import com.obolus.openremo.R
 import com.obolus.openremo.databinding.FragmentHomeBinding
 import com.github.kittinunf.result.Result
 import com.google.gson.Gson
+import org.json.JSONArray
+import org.json.JSONObject
 
 val gson = Gson()
 
@@ -203,28 +209,6 @@ class HomeFragment : Fragment() {
             textView.text = "Sending command"
             binding.progressBar4.visibility = View.VISIBLE
 
-
-/*
-            Fuel.get("$url/1/appliances")
-                .authentication()
-                .bearer(token)
-                .responseString() { result ->
-                    when(result) {
-                        is Result.Success -> {
-                            val devices = result.get()
-                            println("asdev $devices")
-
-                            textView.text = "Got device"
-
-                        }
-                        is Result.Failure -> {
-                            textView.text = result.toString()
-                            binding.progressBar4.setProgress(1, false)
-                            textView.text = "Failure Get Device"
-                        }
-                    }
-*/
-
             Fuel.post(
                 "$url/1/appliances/$light_id/light",
                 listOf("appliance" to light_id, "button" to "night")
@@ -247,6 +231,66 @@ class HomeFragment : Fragment() {
                     binding.progressBar4.visibility = View.GONE
                 }
         }
+
+        Fuel.get("$url/1/devices")
+            .authentication()
+            .bearer(token)
+            .responseString() { result ->
+                binding.progressBar4.visibility = View.VISIBLE
+                when (result) {
+                    is Result.Success -> {
+                        val devicesJSON = JSONArray(result.get())
+                        val events = (devicesJSON[0] as JSONObject)["newest_events"] as JSONObject
+                        val asd = (events["te"] as JSONObject)["val"]
+                        println("asdasdad $asd")
+                        val temperature = ((events["te"] as JSONObject)["val"] as Double).toFloat()
+                        val humidity = (events["hu"] as JSONObject)["val"] as Int
+                        val sharedPref = activity?.getPreferences(Context.MODE_PRIVATE)
+                        if (sharedPref != null) {
+                            with(sharedPref.edit()) {
+                                putFloat(getString(R.string.store_temp), temperature)
+                                apply()
+                            }
+                            with(sharedPref.edit()) {
+                                putInt(getString(R.string.store_humid), humidity)
+                                apply()
+                            }
+                        }
+
+                        textView.text = "Read temp $temperature"
+                        binding.progressBar4.visibility = View.GONE
+
+                    }
+                    is Result.Failure -> {
+                        textView.text = result.toString()
+                        binding.progressBar4.visibility = View.GONE
+                        textView.text = "Failure Get Device"
+                    }
+                }
+            }
+
+        val lastTemp = (activity?.getPreferences(Context.MODE_PRIVATE)?.getFloat(getString(R.string.store_temp),
+            0F) ?: 0F)
+        val lastHu = (activity?.getPreferences(Context.MODE_PRIVATE)?.getInt(getString(R.string.store_humid),
+            0) ?: 0)
+        val aaChartView = root.findViewById<AAChartView>(R.id.aa_chart_view)
+        val aaChartModel : AAChartModel = AAChartModel()
+            .chartType(AAChartType.Area)
+            .title("Living room")
+            .backgroundColor("#333333")
+            .axesTextColor("#ffffff")
+            .yAxisTitle("°C/%")
+            .dataLabelsEnabled(true)
+            .series(arrayOf(
+                AASeriesElement()
+                    .name("Temperature")
+                    .data(arrayOf(lastTemp)),
+                AASeriesElement()
+                    .name("Humidity")
+                    .data(arrayOf(lastHu))
+            ))
+        //The chart view object calls the instance object of AAChartModel and draws the final graphic
+        aaChartView.aa_drawChartWithChartModel(aaChartModel)
 
         return root
     }

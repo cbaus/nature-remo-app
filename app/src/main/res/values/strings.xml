@@ -4,4 +4,6 @@
     <string name="title_dashboard">Settings</string>
     <string name="api_key">com.obolus.openremo.setting_api_key</string>
     <string name="setting_temp">com.obolus.openremo.setting_temp</string>
+    <string name="store_temp">com.obolus.openremo.store_humid</string>
+    <string name="store_humid">com.obolus.openremo.store_temp</string>
 </resources>
