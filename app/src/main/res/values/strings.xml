@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">openremo</string>
+    <string name="title_home">Home</string>
+    <string name="title_dashboard">Settings</string>
+    <string name="api_key">com.obolus.openremo.setting_api_key</string>
+    <string name="setting_temp">com.obolus.openremo.setting_temp</string>
+</resources>
