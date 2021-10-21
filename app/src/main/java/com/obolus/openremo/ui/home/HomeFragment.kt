@@ -18,11 +18,18 @@ import com.github.kittinunf.fuel.core.extensions.authentication
 import com.obolus.openremo.R
 import com.obolus.openremo.databinding.FragmentHomeBinding
 import com.github.kittinunf.result.Result
-import com.google.gson.Gson
 import org.json.JSONArray
 import org.json.JSONObject
 
-val gson = Gson()
+fun appendWithLimit(arr: Array<Any>, element: Any): Array<Any> {
+    val list: MutableList<Any> = arr.toMutableList()
+    list.add(element)
+    list.takeLast(30)
+    return list.toTypedArray()
+}
+
+var temps: Array<Any> = arrayOf()
+var humidities: Array<Any> = arrayOf()
 
 class HomeFragment : Fragment() {
 
@@ -242,23 +249,41 @@ class HomeFragment : Fragment() {
                         val devicesJSON = JSONArray(result.get())
                         val events = (devicesJSON[0] as JSONObject)["newest_events"] as JSONObject
                         val asd = (events["te"] as JSONObject)["val"]
-                        println("asdasdad $asd")
-                        val temperature = ((events["te"] as JSONObject)["val"] as Double).toFloat()
-                        val humidity = (events["hu"] as JSONObject)["val"] as Int
+                        val temperature = ((events["te"] as JSONObject)["val"]).toString().toFloatOrNull()
+                        val humidity = (events["hu"] as JSONObject)["val"].toString().toIntOrNull()
+
+                        temps = appendWithLimit(temps, temperature as Any)
+                        humidities = appendWithLimit(humidities, humidity as Any)
+                        println("asdasdad $asd $temperature ${temperature as Any} ${temps.contentToString()}")
+
                         val sharedPref = activity?.getPreferences(Context.MODE_PRIVATE)
                         if (sharedPref != null) {
-                            with(sharedPref.edit()) {
-                                putFloat(getString(R.string.store_temp), temperature)
-                                apply()
+                            if(temperature != null) {
+                                with(sharedPref.edit()) {
+                                    putFloat(getString(R.string.store_temp), temperature)
+                                    apply()
+                                }
                             }
-                            with(sharedPref.edit()) {
-                                putInt(getString(R.string.store_humid), humidity)
-                                apply()
+                            if(humidity != null) {
+                                with(sharedPref.edit()) {
+                                    putInt(getString(R.string.store_humid), humidity)
+                                    apply()
+                                }
                             }
                         }
 
                         textView.text = "Read temp $temperature"
                         binding.progressBar4.visibility = View.GONE
+
+                        val aaChartView = root.findViewById<AAChartView>(R.id.aa_chart_view)
+                        aaChartView.aa_onlyRefreshTheChartDataWithChartOptionsSeriesArray(arrayOf(
+                            AASeriesElement()
+                                .name("Temperature")
+                                .data(temps),
+                            AASeriesElement()
+                                .name("Humidity")
+                                .data(humidities)
+                        ))
 
                     }
                     is Result.Failure -> {
@@ -269,10 +294,12 @@ class HomeFragment : Fragment() {
                 }
             }
 
-        val lastTemp = (activity?.getPreferences(Context.MODE_PRIVATE)?.getFloat(getString(R.string.store_temp),
-            0F) ?: 0F)
-        val lastHu = (activity?.getPreferences(Context.MODE_PRIVATE)?.getInt(getString(R.string.store_humid),
-            0) ?: 0)
+//        val lastTemp = (activity?.getPreferences(Context.MODE_PRIVATE)?.getFloat(getString(R.string.store_temp),
+//            0F) ?: 0F)
+//        val lastHu = (activity?.getPreferences(Context.MODE_PRIVATE)?.getInt(getString(R.string.store_humid),
+//            0) ?: 0)
+//        temps = appendWithLimit(temps, lastTemp)
+//        humidities = appendWithLimit(humidities, lastHu)
         val aaChartView = root.findViewById<AAChartView>(R.id.aa_chart_view)
         val aaChartModel : AAChartModel = AAChartModel()
             .chartType(AAChartType.Area)
@@ -284,10 +311,10 @@ class HomeFragment : Fragment() {
             .series(arrayOf(
                 AASeriesElement()
                     .name("Temperature")
-                    .data(arrayOf(lastTemp)),
+                    .data(temps),
                 AASeriesElement()
                     .name("Humidity")
-                    .data(arrayOf(lastHu))
+                    .data(humidities)
             ))
         //The chart view object calls the instance object of AAChartModel and draws the final graphic
         aaChartView.aa_drawChartWithChartModel(aaChartModel)
