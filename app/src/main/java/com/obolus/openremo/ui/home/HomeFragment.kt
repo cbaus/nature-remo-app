@@ -2,12 +2,12 @@ package com.obolus.openremo.ui.home
 
 import android.content.Context
 import android.os.Bundle
+import android.text.format.DateFormat
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.github.aachartmodel.aainfographics.aachartcreator.AAChartModel
 import com.github.aachartmodel.aainfographics.aachartcreator.AAChartType
@@ -15,36 +15,46 @@ import com.github.aachartmodel.aainfographics.aachartcreator.AAChartView
 import com.github.aachartmodel.aainfographics.aachartcreator.AASeriesElement
 import com.github.kittinunf.fuel.Fuel
 import com.github.kittinunf.fuel.core.extensions.authentication
-import com.obolus.openremo.R
 import com.obolus.openremo.databinding.FragmentHomeBinding
 import com.github.kittinunf.result.Result
+import com.obolus.openremo.*
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Timer
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.timerTask
 
-fun appendWithLimit(arr: Array<Any>, element: Any): Array<Any> {
-    val list: MutableList<Any> = arr.toMutableList()
-    list.add(element)
-    list.takeLast(30)
-    return list.toTypedArray()
-}
 
-var temps: Array<Any> = arrayOf()
-var humidities: Array<Any> = arrayOf()
+var temps = floatArrayOf()
+var humidities = intArrayOf()
+var timer: Timer? = null
 
 class HomeFragment : Fragment() {
 
     private lateinit var homeViewModel: HomeViewModel
     private var _binding: FragmentHomeBinding? = null
 
+    private val lightId = "c9d0be99-ffa8-4253-848b-8eb131a894db"
+    private val airconId = "928f2a54-f1bc-4a75-930c-1fedc5d662c7"
+    private val url = "https://api.nature.global"
+    private var token = ""
+
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
+
+    private var db: AppDatabase? = null
+    private var measurementDao: MeasurementDao? = null
+
+    private fun aBitEarlier(): Long {
+        return System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(30L * 5L)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         homeViewModel =
             ViewModelProvider(this).get(HomeViewModel::class.java)
 
@@ -52,43 +62,43 @@ class HomeFragment : Fragment() {
         val root: View = binding.root
 
         val textView: TextView = binding.textHome
-        homeViewModel.text.observe(viewLifecycleOwner, Observer {
+        homeViewModel.text.observe(viewLifecycleOwner, {
             textView.text = it
         })
 
         binding.progressBar4.visibility = View.GONE
 
-        val light_id = "c9d0be99-ffa8-4253-848b-8eb131a894db"
-        val aircon_id = "928f2a54-f1bc-4a75-930c-1fedc5d662c7"
-        val url = "https://api.nature.global"
-        var token: String = ""
         var temp = 26
 
         val sharedPref = activity?.getPreferences(Context.MODE_PRIVATE)
         if (sharedPref != null) {
             token = sharedPref.getString(getString(R.string.api_key), "").toString()
             println("found token in pref: '${token}'")
-            temp = sharedPref.getInt(getString(R.string.setting_temp), 26).toInt()
-            println("found temp in pref: '${temp}'")
+            temp = sharedPref.getInt(getString(R.string.setting_temp), 26)
+            println("found temp setting in pref: '${temp}'")
         }
         if (token.isEmpty()) {
             println("Token is empty")
             textView.text = "Please set token"
         }
 
-        binding.buttonhot.setOnClickListener() {
+        Thread.sleep(1000)
+        db = AppDatabase.getAppDataBase(context = requireContext())
+        measurementDao = db?.measurmentDao()
+
+        binding.buttonhot.setOnClickListener {
             textView.text = "Sending command (T=${temp})"
             binding.progressBar4.visibility = View.VISIBLE
             Fuel.post(
-                "$url/1/appliances/$aircon_id/aircon_settings",
+                "$url/1/appliances/$airconId/aircon_settings",
                 listOf(
-                    "appliance" to aircon_id,
+                    "appliance" to airconId,
                     "operation_mode" to "cool",
                     "temperature" to temp.toString()
                 )
             ).authentication()
                 .bearer(token)
-                .responseString() { result2 ->
+                .responseString { result2 ->
                     when (result2) {
                         is Result.Success -> {
                             val appliances = result2.get()
@@ -104,19 +114,19 @@ class HomeFragment : Fragment() {
                     binding.progressBar4.visibility = View.GONE
                 }
         }
-        binding.buttoncold.setOnClickListener() {
+        binding.buttoncold.setOnClickListener {
             textView.text = "Sending command (T=${temp})"
             binding.progressBar4.visibility = View.VISIBLE
             Fuel.post(
-                "$url/1/appliances/$aircon_id/aircon_settings",
+                "$url/1/appliances/$airconId/aircon_settings",
                 listOf(
-                    "appliance" to aircon_id,
+                    "appliance" to airconId,
                     "operation_mode" to "warm",
                     "temperature" to temp.toString()
                 )
             ).authentication()
                 .bearer(token)
-                .responseString() { result2 ->
+                .responseString { result2 ->
                     when (result2) {
                         is Result.Success -> {
                             val appliances = result2.get()
@@ -132,18 +142,18 @@ class HomeFragment : Fragment() {
                     binding.progressBar4.visibility = View.GONE
                 }
         }
-        binding.buttonacoff.setOnClickListener() {
+        binding.buttonacoff.setOnClickListener {
             textView.text = "Sending command AC off"
             binding.progressBar4.visibility = View.VISIBLE
             Fuel.post(
-                "$url/1/appliances/$aircon_id/aircon_settings",
+                "$url/1/appliances/$airconId/aircon_settings",
                 listOf(
-                    "appliance" to aircon_id,
+                    "appliance" to airconId,
                     "button" to "power-off"
                 )
             ).authentication()
                 .bearer(token)
-                .responseString() { result2 ->
+                .responseString { result2 ->
                     when (result2) {
                         is Result.Success -> {
                             val appliances = result2.get()
@@ -160,16 +170,16 @@ class HomeFragment : Fragment() {
                 }
         }
 
-        binding.button10.setOnClickListener() {
+        binding.button10.setOnClickListener {
             textView.text = "Sending command"
             binding.progressBar4.visibility = View.VISIBLE
             Fuel.post(
-                "$url/1/appliances/$light_id/light",
-                listOf("appliance" to light_id, "button" to "onoff")
+                "$url/1/appliances/$lightId/light",
+                listOf("appliance" to lightId, "button" to "onoff")
             )
                 .authentication()
                 .bearer(token)
-                .responseString() { result2 ->
+                .responseString { result2 ->
                     when (result2) {
                         is Result.Success -> {
                             val appliances = result2.get()
@@ -186,16 +196,16 @@ class HomeFragment : Fragment() {
                 }
         }
 
-        binding.button11.setOnClickListener() {
+        binding.button11.setOnClickListener {
             textView.text = "Sending command"
             binding.progressBar4.visibility = View.VISIBLE
             Fuel.post(
-                "$url/1/appliances/$light_id/light",
-                listOf("appliance" to light_id, "button" to "onoff")
+                "$url/1/appliances/$lightId/light",
+                listOf("appliance" to lightId, "button" to "onoff")
             )
                 .authentication()
                 .bearer(token)
-                .responseString() { result2 ->
+                .responseString { result2 ->
                     when (result2) {
                         is Result.Success -> {
                             val appliances = result2.get()
@@ -212,17 +222,17 @@ class HomeFragment : Fragment() {
                 }
         }
 
-        binding.button21.setOnClickListener() {
+        binding.button21.setOnClickListener {
             textView.text = "Sending command"
             binding.progressBar4.visibility = View.VISIBLE
 
             Fuel.post(
-                "$url/1/appliances/$light_id/light",
-                listOf("appliance" to light_id, "button" to "night")
+                "$url/1/appliances/$lightId/light",
+                listOf("appliance" to lightId, "button" to "night")
             )
                 .authentication()
                 .bearer(token)
-                .responseString() { result2 ->
+                .responseString { result2 ->
                     when (result2) {
                         is Result.Success -> {
                             val appliances = result2.get()
@@ -238,88 +248,146 @@ class HomeFragment : Fragment() {
                     binding.progressBar4.visibility = View.GONE
                 }
         }
+
+        val times: MutableList<String> = arrayListOf()
+        measurementDao?.let {
+            val latest = measurementsToLists(it.getLatest(aBitEarlier()))
+            temps = latest.temps
+            humidities = latest.humidities
+            for (time in latest.times) {
+                times.add(DateFormat.format("hh:mm", time).toString())
+            }
+        }
+
+        val aaChartView = root.findViewById<AAChartView>(R.id.aa_chart_view)
+        val aaChartModel: AAChartModel = AAChartModel()
+            .chartType(AAChartType.Line)
+            .backgroundColor("#333333")
+            .axesTextColor("#ffffff")
+            .yAxisTitle("°C/%")
+            .series(
+                arrayOf(
+                    AASeriesElement()
+                        .name("Temperature")
+                        .data(arrayOf(temps)),
+                    AASeriesElement()
+                        .name("Humidity")
+                        .data(arrayOf(humidities))
+                )
+            )
+
+        //Draw chart (at this moment without data
+        aaChartView.aa_drawChartWithChartModel(aaChartModel)
+        aaChartView.aa_hideTheSeriesElementContent(1)
+
+        //Schedule data collection
+        try {
+            timer?.let {
+                it.cancel() // no super safe i guess
+                it.purge()
+                timer = null
+                println("Old timer task removed")
+            }
+        } catch (e: Exception) {
+            println(e)
+        }
+        timer = Timer("pollTemp", true)
+        timer?.let {
+            it.scheduleAtFixedRate(
+                timerTask {
+                    measurementDao?.let { updateMeasurements(it) }
+                },
+                0,
+                TimeUnit.SECONDS.toMillis(600)
+            )
+        }
+        return root
+    }
+
+    private fun updateMeasurements(measurementDao : MeasurementDao) {
+        println("Running update task")
+
 
         Fuel.get("$url/1/devices")
             .authentication()
             .bearer(token)
-            .responseString() { result ->
-                binding.progressBar4.visibility = View.VISIBLE
+            .responseString { result ->
+                notify("Updating", true)
                 when (result) {
                     is Result.Success -> {
                         val devicesJSON = JSONArray(result.get())
                         val events = (devicesJSON[0] as JSONObject)["newest_events"] as JSONObject
-                        val asd = (events["te"] as JSONObject)["val"]
-                        val temperature = ((events["te"] as JSONObject)["val"]).toString().toFloatOrNull()
-                        val humidity = (events["hu"] as JSONObject)["val"].toString().toIntOrNull()
+                        val temperature: Float? =
+                            ((events["te"] as JSONObject)["val"]).toString().toFloatOrNull()
+                        val humidity: Int? =
+                            (events["hu"] as JSONObject)["val"].toString().toIntOrNull()
 
-                        temps = appendWithLimit(temps, temperature as Any)
-                        humidities = appendWithLimit(humidities, humidity as Any)
-                        println("asdasdad $asd $temperature ${temperature as Any} ${temps.contentToString()}")
-
-                        val sharedPref = activity?.getPreferences(Context.MODE_PRIVATE)
-                        if (sharedPref != null) {
-                            if(temperature != null) {
-                                with(sharedPref.edit()) {
-                                    putFloat(getString(R.string.store_temp), temperature)
-                                    apply()
-                                }
-                            }
-                            if(humidity != null) {
-                                with(sharedPref.edit()) {
-                                    putInt(getString(R.string.store_humid), humidity)
-                                    apply()
-                                }
-                            }
+                        if (temperature != null && humidity != null) {
+                            //temps = appendWithLimit(temps, temperature)
+                            //humidities = appendWithLimit(humidities, humidity)
+                            measurementDao.insert(Measurement(System.currentTimeMillis(),
+                                temperature, humidity))
+                            println("Saved temp and humid lists")
                         }
 
-                        textView.text = "Read temp $temperature"
-                        binding.progressBar4.visibility = View.GONE
-
-                        val aaChartView = root.findViewById<AAChartView>(R.id.aa_chart_view)
-                        aaChartView.aa_onlyRefreshTheChartDataWithChartOptionsSeriesArray(arrayOf(
-                            AASeriesElement()
-                                .name("Temperature")
-                                .data(temps),
-                            AASeriesElement()
-                                .name("Humidity")
-                                .data(humidities)
-                        ))
-
+                        notify("Read temp $temperature", false)
+                        redraw()
                     }
                     is Result.Failure -> {
-                        textView.text = result.toString()
-                        binding.progressBar4.visibility = View.GONE
-                        textView.text = "Failure Get Device"
+                        println(result.toString())
+                        notify("Failed get device", false)
                     }
                 }
             }
+    }
 
-//        val lastTemp = (activity?.getPreferences(Context.MODE_PRIVATE)?.getFloat(getString(R.string.store_temp),
-//            0F) ?: 0F)
-//        val lastHu = (activity?.getPreferences(Context.MODE_PRIVATE)?.getInt(getString(R.string.store_humid),
-//            0) ?: 0)
-//        temps = appendWithLimit(temps, lastTemp)
-//        humidities = appendWithLimit(humidities, lastHu)
-        val aaChartView = root.findViewById<AAChartView>(R.id.aa_chart_view)
-        val aaChartModel : AAChartModel = AAChartModel()
-            .chartType(AAChartType.Area)
-            .title("Living room")
-            .backgroundColor("#333333")
-            .axesTextColor("#ffffff")
-            .yAxisTitle("°C/%")
-            .dataLabelsEnabled(true)
-            .series(arrayOf(
-                AASeriesElement()
-                    .name("Temperature")
-                    .data(temps),
-                AASeriesElement()
-                    .name("Humidity")
-                    .data(humidities)
-            ))
-        //The chart view object calls the instance object of AAChartModel and draws the final graphic
-        aaChartView.aa_drawChartWithChartModel(aaChartModel)
+    private fun notify(text: String?, taskRunning: Boolean) {
+        try {
+            val textView: TextView = binding.textHome
+            textView.text = text
+            binding.progressBar4.visibility = if(taskRunning) View.VISIBLE else View.GONE
+        } catch (e: Exception) {
+            println("Did not update screen because Home not focussed: $e")
+        }
+    }
 
-        return root
+    private fun redraw() {
+        try {
+            val root: View = binding.root
+
+            val times: MutableList<String> = arrayListOf()
+            measurementDao?.let {
+                val latest = measurementsToLists(it.getLatest(aBitEarlier()))
+                temps = latest.temps
+                humidities = latest.humidities
+                for (time in latest.times) {
+                    times.add(DateFormat.format("hh:mm", time).toString())
+                }
+            }
+
+            val aaChartView = root.findViewById<AAChartView>(R.id.aa_chart_view)
+            aaChartView.aa_refreshChartWithChartModel(AAChartModel()
+                .chartType(AAChartType.Line)
+                .backgroundColor("#333333")
+                .axesTextColor("#ffffff")
+                .yAxisTitle("°C/%")
+                .categories(times.toTypedArray())
+                .series(
+                    arrayOf(
+                        AASeriesElement()
+                            .name("Temperature")
+                            .data(temps.toTypedArray() as Array<Any>),
+                        AASeriesElement()
+                            .name("Humidity")
+                            .data(humidities.toTypedArray() as Array<Any>)
+                    ))
+
+                )
+            // or use aaChartView.aa_onlyRefreshTheChartDataWithChartOptionsSeriesArray for just data
+        } catch (e: Exception) {
+            println("Did not update screen because Home not focussed: $e")
+            return
+        }
     }
 
     override fun onDestroyView() {

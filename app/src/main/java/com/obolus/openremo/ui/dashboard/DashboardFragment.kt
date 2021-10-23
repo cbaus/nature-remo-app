@@ -26,7 +26,7 @@ class DashboardFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View? {
+    ): View {
         dashboardViewModel =
             ViewModelProvider(this).get(DashboardViewModel::class.java)
 
@@ -43,7 +43,7 @@ class DashboardFragment : Fragment() {
             if (sharedPref != null) {
                 with(sharedPref.edit()) {
                     putString(getString(R.string.api_key), binding.settingApiKey.text.toString())
-                    println("setting apikey to ${binding.settingApiKey.text.toString()}")
+                    println("setting apikey to ${binding.settingApiKey.text}")
                     apply()
                 }
             }
@@ -56,9 +56,9 @@ class DashboardFragment : Fragment() {
                 val sharedPref = activity?.getPreferences(Context.MODE_PRIVATE)
                 if (sharedPref != null) {
                     with(sharedPref.edit()) {
-                        val temp : Int = seekBar.progress.toInt() + 16
+                        val temp : Int = seekBar.progress + 16
                         putInt(getString(R.string.setting_temp), temp)
-                        println("setting temp to ${temp.toString()}")
+                        println("setting temp to $temp")
                         apply()
                     }
                 }
