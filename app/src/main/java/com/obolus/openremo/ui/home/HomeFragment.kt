@@ -29,15 +29,16 @@ var temps = floatArrayOf()
 var humidities = intArrayOf()
 var timer: Timer? = null
 
+
 class HomeFragment : Fragment() {
 
     private lateinit var homeViewModel: HomeViewModel
     private var _binding: FragmentHomeBinding? = null
 
-    private val lightId = "c9d0be99-ffa8-4253-848b-8eb131a894db"
-    private val airconId = "928f2a54-f1bc-4a75-930c-1fedc5d662c7"
-    private val url = "https://api.nature.global"
-    private var token = ""
+    private var url: String = ""
+    private var token: String = ""
+    private var lightId: String = ""
+    private var airconId: String = ""
 
     // This property is only valid between onCreateView and
     // onDestroyView.
@@ -60,6 +61,7 @@ class HomeFragment : Fragment() {
 
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         val root: View = binding.root
+        url = getString(R.string.api_url)
 
         val textView: TextView = binding.textHome
         homeViewModel.text.observe(viewLifecycleOwner, {
@@ -76,18 +78,27 @@ class HomeFragment : Fragment() {
             println("found token in pref: '${token}'")
             temp = sharedPref.getInt(getString(R.string.setting_temp), 26)
             println("found temp setting in pref: '${temp}'")
+            lightId = sharedPref.getString(getString(R.string.setting_light_id),"").toString()
+            airconId = sharedPref.getString(getString(R.string.setting_aircon_id),"").toString()
         }
         if (token.isEmpty()) {
             println("Token is empty")
             textView.text = "Please set token"
         }
+        if (lightId.isEmpty()) {
+            println("Light id is empty")
+            textView.text = "Please set light id"
+        }
+        if (airconId.isEmpty()) {
+            println("AC id is empty")
+            textView.text = "Please set aircon id"
+        }
 
-        Thread.sleep(1000)
         db = AppDatabase.getAppDataBase(context = requireContext())
         measurementDao = db?.measurmentDao()
 
         binding.buttonhot.setOnClickListener {
-            textView.text = "Sending command (T=${temp})"
+            textView.text = "Sending cool down to T=${temp}"
             binding.progressBar4.visibility = View.VISIBLE
             Fuel.post(
                 "$url/1/appliances/$airconId/aircon_settings",
@@ -115,7 +126,7 @@ class HomeFragment : Fragment() {
                 }
         }
         binding.buttoncold.setOnClickListener {
-            textView.text = "Sending command (T=${temp})"
+            textView.text = "Sending heat up T=${temp}"
             binding.progressBar4.visibility = View.VISIBLE
             Fuel.post(
                 "$url/1/appliances/$airconId/aircon_settings",
@@ -255,7 +266,7 @@ class HomeFragment : Fragment() {
             temps = latest.temps
             humidities = latest.humidities
             for (time in latest.times) {
-                times.add(DateFormat.format("hh:mm", time).toString())
+                times.add(DateFormat.format("HH:mm", time).toString())
             }
         }
 
@@ -265,20 +276,20 @@ class HomeFragment : Fragment() {
             .backgroundColor("#333333")
             .axesTextColor("#ffffff")
             .yAxisTitle("°C/%")
+            .categories(times.toTypedArray())
             .series(
                 arrayOf(
                     AASeriesElement()
                         .name("Temperature")
-                        .data(arrayOf(temps)),
+                        .data(temps.toTypedArray() as Array<Any>),
                     AASeriesElement()
                         .name("Humidity")
-                        .data(arrayOf(humidities))
+                        .data(humidities.toTypedArray() as Array<Any>)
                 )
             )
 
         //Draw chart (at this moment without data
         aaChartView.aa_drawChartWithChartModel(aaChartModel)
-        aaChartView.aa_hideTheSeriesElementContent(1)
 
         //Schedule data collection
         try {
@@ -307,7 +318,6 @@ class HomeFragment : Fragment() {
     private fun updateMeasurements(measurementDao : MeasurementDao) {
         println("Running update task")
 
-
         Fuel.get("$url/1/devices")
             .authentication()
             .bearer(token)
@@ -316,15 +326,13 @@ class HomeFragment : Fragment() {
                 when (result) {
                     is Result.Success -> {
                         val devicesJSON = JSONArray(result.get())
-                        val events = (devicesJSON[0] as JSONObject)["newest_events"] as JSONObject
+                        val events = devicesJSON.getJSONObject(0).getJSONObject("newest_events")
                         val temperature: Float? =
-                            ((events["te"] as JSONObject)["val"]).toString().toFloatOrNull()
+                            events.getJSONObject("te").get("val").toString().toFloatOrNull()
                         val humidity: Int? =
-                            (events["hu"] as JSONObject)["val"].toString().toIntOrNull()
+                            events.getJSONObject("hu").get("val").toString().toIntOrNull()
 
                         if (temperature != null && humidity != null) {
-                            //temps = appendWithLimit(temps, temperature)
-                            //humidities = appendWithLimit(humidities, humidity)
                             measurementDao.insert(Measurement(System.currentTimeMillis(),
                                 temperature, humidity))
                             println("Saved temp and humid lists")
@@ -361,7 +369,7 @@ class HomeFragment : Fragment() {
                 temps = latest.temps
                 humidities = latest.humidities
                 for (time in latest.times) {
-                    times.add(DateFormat.format("hh:mm", time).toString())
+                    times.add(DateFormat.format("HH:mm", time).toString())
                 }
             }
 
