@@ -7,6 +7,7 @@
     <string name="store_temp">com.obolus.openremo.store_humid</string>
     <string name="store_humid">com.obolus.openremo.store_temp</string>
     <string name="setting_light_id">com.obolus.openremo.setting_light_id</string>
+    <string name="setting_light2_id">com.obolus.openremo.setting_light2_id</string>
     <string name="setting_aircon_id">com.obolus.openremo.setting_aircon_id</string>
     <string name="api_url">https://api.nature.global</string>
 </resources>

@@ -20,11 +20,9 @@ import com.obolus.openremo.databinding.FragmentHomeBinding
 import com.github.kittinunf.result.Result
 import com.obolus.openremo.*
 import org.json.JSONArray
-import org.json.JSONObject
 import java.util.Timer
 import java.util.concurrent.TimeUnit
 import kotlin.concurrent.timerTask
-
 
 var temps = floatArrayOf()
 var humidities = intArrayOf()
@@ -40,6 +38,7 @@ class HomeFragment : Fragment() {
     private var url: String = ""
     private var token: String = ""
     private var lightId: String = ""
+    private var light2Id: String = ""
     private var airconId: String = ""
 
     // This property is only valid between onCreateView and
@@ -81,6 +80,7 @@ class HomeFragment : Fragment() {
             temp = sharedPref.getInt(getString(R.string.setting_temp), 26)
             println("found temp setting in pref: '${temp}'")
             lightId = sharedPref.getString(getString(R.string.setting_light_id),"").toString()
+            light2Id = sharedPref.getString(getString(R.string.setting_light2_id),"").toString()
             airconId = sharedPref.getString(getString(R.string.setting_aircon_id),"").toString()
         }
         if (token.isEmpty()) {
@@ -90,6 +90,10 @@ class HomeFragment : Fragment() {
         if (lightId.isEmpty()) {
             println("Light id is empty")
             textView.text = "Please set light id"
+        }
+        if (light2Id.isEmpty()) {
+            println("Light2 id is empty")
+            textView.text = "Please set light 2 id"
         }
         if (airconId.isEmpty()) {
             println("AC id is empty")
@@ -183,83 +187,28 @@ class HomeFragment : Fragment() {
                 }
         }
 
-        binding.button10.setOnClickListener {
-            textView.text = "Sending command"
-            binding.progressBar4.visibility = View.VISIBLE
-            Fuel.post(
-                "$url/1/appliances/$lightId/light",
-                listOf("appliance" to lightId, "button" to "onoff")
-            )
-                .authentication()
-                .bearer(token)
-                .responseString { result2 ->
-                    when (result2) {
-                        is Result.Success -> {
-                            val appliances = result2.get()
-
-                            println("asd $appliances")
-                            textView.text = "Done"
-                        }
-                        is Result.Failure -> {
-                            println(result2.toString())
-                            textView.text = "Failure Get Appliance"
-                        }
-                    }
-                    binding.progressBar4.visibility = View.GONE
-                }
+        binding.buttonDayL1.setOnClickListener {
+            sendLightCommand("on", lightId)
         }
 
-        binding.button11.setOnClickListener {
-            textView.text = "Sending command"
-            binding.progressBar4.visibility = View.VISIBLE
-            Fuel.post(
-                "$url/1/appliances/$lightId/light",
-                listOf("appliance" to lightId, "button" to "onoff")
-            )
-                .authentication()
-                .bearer(token)
-                .responseString { result2 ->
-                    when (result2) {
-                        is Result.Success -> {
-                            val appliances = result2.get()
-
-                            println("asd $appliances")
-                            textView.text = "Done"
-                        }
-                        is Result.Failure -> {
-                            println(result2.toString())
-                            textView.text = "Failure Get Appliance"
-                        }
-                    }
-                    binding.progressBar4.visibility = View.GONE
-                }
+        binding.buttonOffL1.setOnClickListener {
+            sendLightCommand("off", lightId)
         }
 
-        binding.button21.setOnClickListener {
-            textView.text = "Sending command"
-            binding.progressBar4.visibility = View.VISIBLE
+        binding.buttonNightL1.setOnClickListener {
+            sendLightCommand("night", lightId)
+        }
 
-            Fuel.post(
-                "$url/1/appliances/$lightId/light",
-                listOf("appliance" to lightId, "button" to "night")
-            )
-                .authentication()
-                .bearer(token)
-                .responseString { result2 ->
-                    when (result2) {
-                        is Result.Success -> {
-                            val appliances = result2.get()
+        binding.buttonDayL2.setOnClickListener {
+            sendLightCommand("on", light2Id)
+        }
 
-                            println("asd $appliances")
-                            textView.text = "Done"
-                        }
-                        is Result.Failure -> {
-                            println(result2.toString())
-                            textView.text = "Failure Get Appliance"
-                        }
-                    }
-                    binding.progressBar4.visibility = View.GONE
-                }
+        binding.buttonOffL2.setOnClickListener {
+            sendLightCommand("off", light2Id)
+        }
+
+        binding.buttonNightL2.setOnClickListener {
+            sendLightCommand("night", light2Id)
         }
 
         val times: MutableList<String> = arrayListOf()
@@ -286,7 +235,7 @@ class HomeFragment : Fragment() {
                         .data(temps.toTypedArray() as Array<Any>),
                     AASeriesElement()
                         .name("Humidity")
-                        .data(humidities.toTypedArray() as Array<Any>)
+                       .data(humidities.toTypedArray() as Array<Any>)
                 )
             )
 
@@ -304,17 +253,46 @@ class HomeFragment : Fragment() {
         } catch (e: Exception) {
             println(e)
         }
+        val delay = TimeUnit.SECONDS.toMillis(updateFreqInS) - clamp(System.currentTimeMillis() - lastRunTask,
+            0L, TimeUnit.SECONDS.toMillis(updateFreqInS))
+        println("Scheduling task with delay of ${delay}ms")
         timer = Timer("pollTemp", true)
-        timer?.let {
+        timer?.let { it ->
             it.scheduleAtFixedRate(
                 timerTask {
                     measurementDao?.let { updateMeasurements(it) }
                 },
-                0,
-                TimeUnit.SECONDS.toMillis(600)
+                delay,
+                TimeUnit.SECONDS.toMillis(updateFreqInS)
             )
         }
         return root
+    }
+
+    private fun sendLightCommand(buttonCmd: String, id : String) {
+        notify("Sending command", true)
+        binding.progressBar4.visibility = View.VISIBLE
+        Fuel.post(
+            "$url/1/appliances/$id/light",
+            listOf("appliance" to id, "button" to buttonCmd)
+        )
+            .authentication()
+            .bearer(token)
+            .responseString { result2 ->
+                when (result2) {
+                    is Result.Success -> {
+                        val appliances = result2.get()
+
+                        println("asd $appliances")
+                        notify("Done", false)
+                    }
+                    is Result.Failure -> {
+                        println(result2.toString())
+                        notify("Failure Get Appliance", false)
+                    }
+                }
+                binding.progressBar4.visibility = View.GONE
+            }
     }
 
     private fun updateMeasurements(measurementDao : MeasurementDao) {

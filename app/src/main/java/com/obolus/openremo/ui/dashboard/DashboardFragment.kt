@@ -46,6 +46,8 @@ class DashboardFragment : Fragment() {
             ?.getString(getString(R.string.setting_aircon_id), "undefined").toString()
         binding.settingLightId.text = activity?.getPreferences(Context.MODE_PRIVATE)
             ?.getString(getString(R.string.setting_light_id), "undefined").toString()
+        binding.settingLight2Id.text = activity?.getPreferences(Context.MODE_PRIVATE)
+            ?.getString(getString(R.string.setting_light2_id), "undefined").toString()
 
         binding.seekBar2.progress = (activity?.getPreferences(Context.MODE_PRIVATE)
             ?.getInt(getString(R.string.setting_temp), 26) ?: 26) - 16
@@ -78,6 +80,7 @@ class DashboardFragment : Fragment() {
             }
         })
 
+        var lightCount = 0
         binding.button.setOnClickListener {
             Fuel.get(
                 "$url/1/appliances/",
@@ -105,16 +108,22 @@ class DashboardFragment : Fragment() {
                                         }
                                     }
                                 } else if (type == "LIGHT") {
+                                    lightCount += 1
                                     println("found light")
                                     val id = appliance.get("id").toString()
                                     if (sharedPref != null) {
                                         with(sharedPref.edit()) {
                                             putString(
-                                                getString(R.string.setting_light_id),
+                                                getString(if(lightCount == 1) R.string.setting_light_id else R.string.setting_light2_id),
                                                 id
                                             )
                                             apply()
-                                            binding.settingLightId.text = id
+                                            if(lightCount == 1) {
+                                                binding.settingLightId.text = id
+                                            } else {
+                                                binding.settingLight2Id.text = id
+                                            }
+
                                         }
                                     }
                                 }
