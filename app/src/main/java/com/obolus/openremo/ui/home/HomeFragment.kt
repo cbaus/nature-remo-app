@@ -50,7 +50,7 @@ class HomeFragment : Fragment() {
     private var measurementDao: MeasurementDao? = null
 
     private fun aBitEarlier(): Long {
-        return System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(30L * 5L)
+        return System.currentTimeMillis() - TimeUnit.HOURS.toMillis(24L)
     }
 
     override fun onCreateView(
