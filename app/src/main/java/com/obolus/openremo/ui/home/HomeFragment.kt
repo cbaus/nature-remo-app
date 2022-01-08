@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.math.MathUtils.clamp
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.github.aachartmodel.aainfographics.aachartcreator.AAChartModel
@@ -28,7 +29,8 @@ import kotlin.concurrent.timerTask
 var temps = floatArrayOf()
 var humidities = intArrayOf()
 var timer: Timer? = null
-
+var lastRunTask = 0L
+val updateFreqInS = 600L
 
 class HomeFragment : Fragment() {
 
@@ -316,7 +318,13 @@ class HomeFragment : Fragment() {
     }
 
     private fun updateMeasurements(measurementDao : MeasurementDao) {
-        println("Running update task")
+        val ranRecently = lastRunTask > System.currentTimeMillis() - TimeUnit.SECONDS.toMillis(updateFreqInS - 10L)
+        println("Running update task (already updated in this period? $ranRecently, last ran $lastRunTask > ${System.currentTimeMillis() - TimeUnit.SECONDS.toMillis(updateFreqInS - 10L)})")
+
+        if (ranRecently)
+            return
+
+        lastRunTask = System.currentTimeMillis()
 
         Fuel.get("$url/1/devices")
             .authentication()
